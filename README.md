@@ -1,26 +1,8 @@
+# EIP-7936 Versioned Proxy Contract Interface
+
 Copy of the proposal living at <https://github.com/ethereum/ERCs/pull/1017/>
 
----
-
-eip: 7936
-
-title: Versioned Proxy Contract Interface
-
-description: Multi-version proxy contracts that allow callers to select implementation
-
-author: Raphina Liu (@Stamp9), Monica Jin (@mokita-j), Martin Monperrus (@monperrus)
-
-discussions-to: https://ethereum-magicians.org/t/new-erc-versioned-proxy-contract-interface/23743
-
-status: Draft
-
-type: Standards Track
-
-category: ERC
-
-created: 2025-04-17
-
----
+This repository also contains a reference implementation, Solidity + Forge. 
 
 ## Abstract
 
