@@ -21,10 +21,6 @@ interface IVersionedProxy {
     /// @param implementation The address of the implementation contract
     function registerVersion(bytes32 version, address implementation) external;
     
-    /// @notice Removes a version from the registry
-    /// @param version The version identifier to remove
-    function removeVersion(bytes32 version) external;
-    
     /// @notice Sets the default version to use when no version is specified
     /// @param version The version identifier to set as default
     function setDefaultVersion(bytes32 version) external;
@@ -74,7 +70,6 @@ contract VersionedProxy is IVersionedProxy {
     error VersionAlreadyExists(bytes32 version);
     error InvalidImplementation();
     error CallFailed();
-    error CannotRemoveDefaultVersion();
     error ImplementationsChanged();
     
     modifier onlyAdmin() {
@@ -107,28 +102,6 @@ contract VersionedProxy is IVersionedProxy {
         }
         
         emit VersionRegistered(version, implementation);
-    }
-    
-    /// @inheritdoc IVersionedProxy
-    function removeVersion(bytes32 version) external onlyAdmin {
-        if (_implementations[version] == address(0)) {
-            revert VersionNotFound(version);
-        }
-        
-        if (version == _defaultVersion) {
-            revert CannotRemoveDefaultVersion();
-        }
-        
-        delete _implementations[version];
-        
-        // Remove from versions array
-        for (uint256 i = 0; i < _versions.length; i++) {
-            if (_versions[i] == version) {
-                _versions[i] = _versions[_versions.length - 1];
-                _versions.pop();
-                break;
-            }
-        }
     }
     
     /// @inheritdoc IVersionedProxy
