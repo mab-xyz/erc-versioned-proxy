@@ -138,10 +138,12 @@ contract VersionedProxy is IVersionedProxy {
         return _versions;
     }
 
-    /// @dev Computes a hash over all registered (version → implementation)
+    /// @dev Computes a hash over admin and all registered (version → implementation)
     ///      pairs, starting from the first registered version.
+    ///     Additional state variables that are not allowed to be overwritten by 
+    ///     the implemmentations can be added here.
     function _computeImplementationsHash() private view returns (bytes32) {
-        bytes memory data;
+        bytes memory data = abi.encode(_getAdmin());
 
         for (uint256 i = 0; i < _versions.length; i++) {
             bytes32 v = _versions[i];
