@@ -1,4 +1,4 @@
-# EIP-7936 Versioned Proxy Contract Interface
+# erc-7936 Versioned Proxy Contract Interface
 
 Copy of the proposal living at <https://github.com/ethereum/ERCs/pull/1017/>
 
