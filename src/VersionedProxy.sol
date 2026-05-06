@@ -21,10 +21,6 @@ interface IVersionedProxy {
     /// @param implementation The address of the implementation contract
     function registerVersion(bytes32 version, address implementation) external;
     
-    /// @notice Removes a version from the registry
-    /// @param version The version identifier to remove
-    function removeVersion(bytes32 version) external;
-    
     /// @notice Sets the default version to use when no version is specified
     /// @param version The version identifier to set as default
     function setDefaultVersion(bytes32 version) external;
@@ -74,7 +70,7 @@ contract VersionedProxy is IVersionedProxy {
     error VersionAlreadyExists(bytes32 version);
     error InvalidImplementation();
     error CallFailed();
-    error CannotRemoveDefaultVersion();
+    error ImplementationsChanged();
     
     modifier onlyAdmin() {
         if (msg.sender != _getAdmin()) {
@@ -106,28 +102,6 @@ contract VersionedProxy is IVersionedProxy {
         }
         
         emit VersionRegistered(version, implementation);
-    }
-    
-    /// @inheritdoc IVersionedProxy
-    function removeVersion(bytes32 version) external onlyAdmin {
-        if (_implementations[version] == address(0)) {
-            revert VersionNotFound(version);
-        }
-        
-        if (version == _defaultVersion) {
-            revert CannotRemoveDefaultVersion();
-        }
-        
-        delete _implementations[version];
-        
-        // Remove from versions array
-        for (uint256 i = 0; i < _versions.length; i++) {
-            if (_versions[i] == version) {
-                _versions[i] = _versions[_versions.length - 1];
-                _versions.pop();
-                break;
-            }
-        }
     }
     
     /// @inheritdoc IVersionedProxy
@@ -163,6 +137,22 @@ contract VersionedProxy is IVersionedProxy {
     function getVersions() external view returns (bytes32[] memory) {
         return _versions;
     }
+
+    /// @dev Computes a hash over admin and all registered (version → implementation)
+    ///      pairs, starting from the first registered version.
+    ///     Additional state variables that are not allowed to be overwritten by 
+    ///     the implemmentations can be added here.
+    function _computeImplementationsHash() private view returns (bytes32) {
+        bytes memory data = abi.encode(_getAdmin());
+
+        for (uint256 i = 0; i < _versions.length; i++) {
+            bytes32 v = _versions[i];
+            data = abi.encodePacked(data, v, _implementations[v]);
+        }
+
+        return keccak256(data);
+    }
+
     
     /// @inheritdoc IVersionedProxy
     function executeAtVersion(bytes32 version, bytes calldata data) 
@@ -174,8 +164,17 @@ contract VersionedProxy is IVersionedProxy {
         if (implementation == address(0)) {
             revert VersionNotFound(version);
         }
-        
-        return _delegateCall(implementation, data);
+
+        // Snapshot before delegatecall
+        bytes32 beforeHash = _computeImplementationsHash();
+        bytes memory returndata = _delegateCall(implementation, data);
+
+        // Verify registry was not tampered with
+        if (_computeImplementationsHash() != beforeHash) {
+            revert ImplementationsChanged();
+        }
+
+        return returndata;
     }
     
     /// @dev Fallback function forwards to default implementation
@@ -184,8 +183,18 @@ contract VersionedProxy is IVersionedProxy {
         if (implementation == address(0)) {
             revert VersionNotFound(_defaultVersion);
         }
-        
-        _delegate(implementation);
+
+        bytes32 beforeHash = _computeImplementationsHash();
+
+        bytes memory returndata = _delegateCall(implementation, msg.data);
+
+        if (_computeImplementationsHash() != beforeHash) {
+            revert ImplementationsChanged();
+        }
+
+        assembly {
+            return(add(returndata, 32), mload(returndata))
+        }
     }
     
     /// @dev Receive function to accept ETH
@@ -211,30 +220,6 @@ contract VersionedProxy is IVersionedProxy {
         }
         
         return returndata;
-    }
-    
-    /// @dev Delegates execution to an implementation contract (for fallback)
-    function _delegate(address implementation) private {
-        assembly {
-            // Copy msg.data
-            calldatacopy(0, 0, calldatasize())
-            
-            // Delegate call to the implementation
-            let result := delegatecall(gas(), implementation, 0, calldatasize(), 0, 0)
-            
-            // Copy the returned data
-            returndatacopy(0, 0, returndatasize())
-            
-            switch result
-            case 0 {
-                // Delegatecall failed, revert with returned data
-                revert(0, returndatasize())
-            }
-            default {
-                // Delegatecall succeeded, return data
-                return(0, returndatasize())
-            }
-        }
     }
     
     /// @dev Gets the admin address from storage
